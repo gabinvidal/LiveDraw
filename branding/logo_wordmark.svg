@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 340" width="1180" height="340">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#343434"/><stop offset="1" stop-color="#242424"/>
+  </linearGradient>
+  <linearGradient id="orange" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#F6A24C"/><stop offset="1" stop-color="#E8853B"/>
+  </linearGradient>
+</defs>
+<g transform="translate(10,10) scale(0.625)">
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#bg)" stroke="#565656" stroke-width="4"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <line x1="352" y1="160" x2="210" y2="306" stroke="url(#orange)" stroke-width="46"/>
+    <polygon points="156,356 200,298 224,320" fill="url(#orange)"/>
+  </g>
+</g>
+<text x="360" y="212" font-family="DejaVu Sans, Arial, sans-serif" font-size="150" font-weight="700" fill="#2B2B2B">Live<tspan fill="#E8853B">Draw</tspan></text>
+<text x="362" y="278" font-family="DejaVu Sans, Arial, sans-serif" font-size="46" font-weight="400" fill="#8A8A8A">sketch overlay for Nuke</text>
+</svg>
