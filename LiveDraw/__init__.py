@@ -938,6 +938,8 @@ class LiveDrawLauncher(QtWidgets.QWidget):
         self.setObjectName(_VIEWER_BTN_NAME)
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
+        # n'active/ne vole jamais le focus lors d'un show()/raise_()
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
 
         self.btn = QtWidgets.QToolButton(self)
         self.btn.setIcon(_icon("pen", 20))
@@ -965,8 +967,11 @@ class LiveDrawLauncher(QtWidgets.QWidget):
         img = _viewer_image_widget()
         minimized = self.main is not None and self.main.isMinimized()
         open_now = LiveDrawController._instance is not None
+        # quand la fenetre principale n'est pas active (dialog secondaire ouvert),
+        # ne pas raise_() : sinon on force la fenetre principale au premier plan
+        main_active = self.main is None or self.main.isActiveWindow()
         # cache le bouton quand LiveDraw est ouvert (il reapparait a la fermeture)
-        if img is None or not img.isVisible() or minimized or open_now:
+        if img is None or not img.isVisible() or minimized or open_now or not main_active:
             self.hide()
             return
         tl = img.mapToGlobal(QtCore.QPoint(10, 10))  # haut-gauche, cote palette
