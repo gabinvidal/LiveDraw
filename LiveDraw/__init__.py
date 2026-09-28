@@ -19,6 +19,8 @@ Compatible PySide2 (Nuke < 15) et PySide6 (Nuke >= 15).
 import os
 import json
 
+import nuke
+
 try:
     from PySide6 import QtWidgets, QtCore, QtGui
     _PYSIDE = 6
@@ -38,7 +40,7 @@ DEFAULT_COLOR = "#F0902B"  # orange
 WIDTHS = {"S": 4, "M": 10, "L": 20}
 DOT_R = {"S": 2.5, "M": 4.5, "L": 7.0}
 
-AUTOSAVE = os.path.join(os.path.expanduser("~"), ".nuke", "livedraw_autosave.json")
+AUTOSAVE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "livedraw_autosave.json")
 ACCENT = "#E8853B"
 
 # Position/taille fixe de la palette (relative au coin haut-gauche du Viewer)
@@ -108,6 +110,28 @@ def _sketch_dir():
     except Exception:
         pass
     return os.path.join(os.path.expanduser("~"), "Documents", "LiveDraw")
+
+
+_OUR_WIN_NAMES = {"LiveDraw_ViewerButton", "LiveSnap_ViewerButton", "gbar", "bar"}
+_OUR_WIN_TITLES = {"LiveDraw", "LiveSnap"}
+
+
+def _is_ours(aw, main):
+    """Vrai si 'aw' est la principale ou une de nos fenetres flottantes
+    (boutons / palette / galerie, LiveDraw + LiveSnap). Sert a decider si on peut
+    remonter (raise_) au premier plan sans passer devant un dialogue Nuke."""
+    if aw is None:
+        return False
+    if aw is main:
+        return True
+    try:
+        if aw.objectName() in _OUR_WIN_NAMES:
+            return True
+        if aw.windowTitle() in _OUR_WIN_TITLES:
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _screen_of(point):
@@ -822,6 +846,14 @@ class LiveDrawController(QtCore.QObject):
     def _sync(self, force_show=False):
         viewer = _find_viewer_widget()
         pal = self.canvas.palette
+        # 'Q' (raccourci natif Nuke : masque le HUD du Viewer) bascule aussi
+        # LiveDraw + LiveSnap ensemble. L'etat est pose par LiveSnap (qui
+        # observe la touche) sur le module nuke, pour rester lisible par les
+        # deux outils sans dependance d'import entre eux.
+        if getattr(nuke, "_gvtools_hud_hidden", False):
+            self.canvas.hide()
+            pal.hide()
+            return
         minimized = self.main is not None and self.main.isMinimized()
         if viewer is None or not viewer.isVisible() or minimized:
             self.canvas.hide()
@@ -840,7 +872,14 @@ class LiveDrawController(QtCore.QObject):
             self._palette_placed = True
         if not pal.isVisible():
             pal.show()
-        pal.raise_()
+        # ne remonter la palette/canvas que si une de NOS fenetres est active :
+        # sinon (dialogue Nuke : frame range d'un Write, etc.) on la laisse
+        # derriere pour ne pas masquer le dialogue.
+        app = QtWidgets.QApplication.instance()
+        aw = app.activeWindow() if app is not None else None
+        ours = _is_ours(aw, self.main)
+        if ours:
+            pal.raise_()
         if force_show:
             self.canvas.raise_()
             pal.raise_()
@@ -938,6 +977,8 @@ class LiveDrawLauncher(QtWidgets.QWidget):
         self.setObjectName(_VIEWER_BTN_NAME)
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
+        # n'active/ne vole jamais le focus lors d'un show()/raise_()
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
 
         self.btn = QtWidgets.QToolButton(self)
         self.btn.setIcon(_icon("pen", 20))
@@ -962,19 +1003,33 @@ class LiveDrawLauncher(QtWidgets.QWidget):
         self._sync()
 
     def _sync(self):
-        img = _viewer_image_widget()
-        minimized = self.main is not None and self.main.isMinimized()
-        open_now = LiveDrawController._instance is not None
-        # cache le bouton quand LiveDraw est ouvert (il reapparait a la fermeture)
-        if img is None or not img.isVisible() or minimized or open_now:
+        if getattr(nuke, "_gvtools_hud_hidden", False):
             self.hide()
             return
+        img = _viewer_image_widget()
+        app = QtWidgets.QApplication.instance()
+        minimized = self.main is not None and self.main.isMinimized()
+        open_now = LiveDrawController._instance is not None
+        aw = app.activeWindow() if app is not None else None
+        # cache le bouton si LiveDraw est ouvert, si une autre appli est devant
+        # (aw None), ou si le Viewer n'est pas la. Un dialogue Nuke actif -> on
+        # reste visible mais sans remonter (voir plus bas).
+        if img is None or not img.isVisible() or minimized or open_now or aw is None:
+            # hysteresis : ne se cache qu'apres 2 passages (anti-clignotement)
+            self._miss = getattr(self, "_miss", 0) + 1
+            if self._miss >= 2 or open_now:
+                self.hide()
+            return
+        self._miss = 0
         tl = img.mapToGlobal(QtCore.QPoint(10, 10))  # haut-gauche, cote palette
         if self.pos() != tl:
             self.move(tl)
         if not self.isVisible():
             self.show()
-        self.raise_()
+        # ne remonter que si une de NOS fenetres est active : sinon (dialogue
+        # Nuke) on reste visible dans le coin mais derriere lui.
+        if _is_ours(aw, self.main):
+            self.raise_()
 
 
 _SHORTCUT = None
