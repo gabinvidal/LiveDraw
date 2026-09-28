@@ -937,6 +937,9 @@ def open_sketch_folder():
     try:
         if os.name == "nt":
             os.startfile(folder)
+        elif os.uname().sysname == "Darwin":
+            import subprocess
+            subprocess.Popen(["open", folder])
         else:
             import subprocess
             subprocess.Popen(["xdg-open", folder])
